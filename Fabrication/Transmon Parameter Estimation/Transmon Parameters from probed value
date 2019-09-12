@@ -1,0 +1,67 @@
+"""
+Created on Thu Sep 12 17:06:22 2019
+@author: Sumeru
+
+"""
+#==================================================================================
+#This code estimates the transmon parameters using approximate Mathieu function at 
+#low temperatures from the given probed resistances and capacitor values.
+#==================================================================================
+import scipy.special as sp
+import numpy as np
+
+h = 6.626e-34                                       #Plank constant
+phi0 = 3.291e-16                                    #flux quantum
+kb = 1.38e-23                                       #Blotzmann constant
+el = 1.6e-19                                        #charge quantum
+
+print ("===========================================================================")
+print ("To find the frequency and anharmonicity call the function 'spectra(rp, cp)'.")
+print ("rp = probed resistance value in kOHm. cp = qubit capacitance in fF")
+print ("===========================================================================")
+
+#==================================================================================
+#From the probed resistance, the leakage current equivalent to 40kOhm resistance
+#is parallel in cancelled. Then an additional 20% increase in junction resistance
+#is added emperically. This value is used to estimate the Josephson energy of the
+#juntion. The function prints the low temperature resistance and returns Ej in GHz
+#==================================================================================
+
+def josephson_energy(rp):                           #gets josephson energy of junction
+    rlow = (rp * 1.2) * 40/(40 - rp)                #low temperature resistance
+    i0 = (300e-6)/(rlow * 1e3)                      #ambegaokar baratoff formula
+    ej = phi0 * i0 * 1e-9                           #Ej in 1/Lj unit
+    ejghz = (ej/h)                                  #Ej in GHz unit
+    print("Low temerature resistance",rlow, "kOhm")
+    return ejghz
+
+#==================================================================================
+#From the estimated josephson energy and given capacitance, Ej/Ec is calculated. 
+#This value is used to estimate Transmon spectra using  Mathieu function to calculate 
+#the energy of first few levels. However the Mathieu function defined in the scipy 
+#library takes only integer input for exponent 'm'. Hence we need to approximate the
+#Mathieu functions using the formula: (which holds for small m and large q)
+#>>>>>>> mathieu_a(m+0.5,q)=0.5*(mathieu_a(m,q)+mathieu_a(m+1,q)); m = even
+#>>>>>>> mathieu_a(m+0.5,q)=0.5*(mathieu_b(m,q)+mathieu_b(m+1,q)); m = odd
+#==================================================================================
+
+def energy_level(n, ratio, ec):
+    if n % 2 ==0:
+        energy_n = ec * (sp.mathieu_a(n, -0.5 * ratio) + sp.mathieu_a(n + 1, -0.5 * ratio))/2
+    else:
+        energy_n = ec * (sp.mathieu_b(n, -0.5 * ratio) + sp.mathieu_b(n + 1, -0.5 * ratio))/2
+    return energy_n
+
+def spectra(rp, cp):
+    ec = (1e-9 * el**2)/(2 * h * cp * 1e-15)        #Charging energy in GHz from given C
+    print ("===========================================================================")
+    print ("charging energy", ec, "GHz.")
+    ej = josephson_energy(rp)
+    print ("Josephson Energy:", ej, "GHz.")
+    ratio = ej/ec
+    print ("Ej/Ec ratio:", ratio)
+    f01 = energy_level(1, ratio, ec) - energy_level(0, ratio, ec)
+    f12 = energy_level(2, ratio, ec) - energy_level(1, ratio, ec)
+    print ("Transmon Frequency:", f01, "GHz.")
+    print ("Anharmonicity:", f12-f01, "GHz.")
+    print ("===========================================================================")
